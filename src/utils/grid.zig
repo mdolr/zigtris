@@ -141,54 +141,49 @@ pub const Grid = struct {
         }
     }
 
-    // the output functino takes an output path and writes the grid to a file
-    // the grid is written as a matrix of characters
-    // lines are rendered from top to bottom
-    // however lines full of 0s are not written
+    // the output functino takes an output path and outputs the
+    // max height of the height cache as the total height of the
+    // grid after all the pieces have been placed and full rows
+    // have been completed
     pub fn output(self: *Grid, output_path: []const u8) !void {
-        // Open the file for writing
         const file = try std.fs.cwd().createFile(output_path, .{});
         defer file.close();
 
         const writer = file.writer();
         var buf_writer = std.io.bufferedWriter(writer);
 
-        var row: usize = self.height;
-        var col: u32 = 0;
+        var max_height: usize = 0;
 
-        // Loop through rows from `self.height` down to 0
-        while (row > 0) : (row -= 1) {
+        // start at 0 in case the grid is empty
+        var current_row: usize = 0;
+        var col: usize = 0;
+
+        // loop from bottom to top once we encounter an empty row we break
+        // and return the max height
+        while (current_row < self.height) : (current_row += 1) {
+            col = 0;
             var empty_row = true;
 
-            col = 0;
             while (col < self.width) : (col += 1) {
-                const cell = self.get_cell(row - 1, col);
-
-                // Check if the row has any non-zero cell
-                if (cell != 0) {
+                if (self.get_cell(current_row, col) != 0) {
                     empty_row = false;
-                    break; // Exit the loop early if a non-zero cell is found
+                    break;
                 }
             }
 
-            // If the row is not empty, write it to the file
             if (!empty_row) {
-                col = 0;
-                while (col < self.width) : (col += 1) {
-                    const cell = self.get_cell(row - 1, col);
-                    const char = if (cell != 0) cell else ' ';
-
-                    try buf_writer.writer().print("{c}", .{char});
-                }
-
-                if (row > 1) {
-                    // Add a newline after each row except the last one
-                    try buf_writer.writer().print("\n", .{});
-                }
+                // because the first row is 0 we offset height as current_row + 1
+                max_height = current_row + 1;
+            } else {
+                break;
             }
         }
 
-        // Flush the buffered writer to ensure all data is written to the file
+        // Write the maximum height to the file
+        try buf_writer.writer().print("{d}\n", .{max_height});
+        std.debug.print("Max height: {}\n", .{max_height});
+
+        // Flush the buffered writer to ensure the value is written
         try buf_writer.flush();
     }
 };
