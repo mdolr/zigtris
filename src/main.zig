@@ -38,15 +38,18 @@ pub fn main() !void {
     std.debug.print("Input path raw: {s}\n", .{input_path});
     std.debug.print("Output path raw: {s}\n", .{output_path});
 
+    const output_file = try std.fs.cwd().createFile(output_path, .{});
+    defer output_file.close();
+
+    const writer = output_file.writer();
+    var buf_writer = std.io.bufferedWriter(writer);
+
     // Initialize a matrix to represent the Tetris grid
     // of height = 100 and width = 10
     // as pointed out in the subject we assume a height of 100 as it's said that no test cases
     // will exceed this height, however we could make this dynamic if needed
-
     const height: u8 = 100;
     const width: u8 = 10;
-
-    var tetris_grid = try grid.Grid.init(height, width, &allocator);
 
     // open the file, split by "," and print each element
     var file = try std.fs.cwd().openFile(input_path, .{});
@@ -58,61 +61,81 @@ pub fn main() !void {
 
     // set the buffer size to 16 bytes as we know each element is relatively small by
     // being composed of a letter and a number between 0 and 9
-    var buf: [16]u8 = undefined;
+    var buf: [1024]u8 = undefined;
 
     // read the file using "," as a delimiter then iterate over each element
-    while (try in_stream.readUntilDelimiterOrEof(&buf, ',')) |elem| {
-
-        // each element is composed of a letter and a number
-        // the letter indicating the type of piece it is and the number indicating the starting column
-        const letter = elem[0];
-
-        // convert the column number to an integer by using - '0' to remove the ASCII offset
-        // and get the actual integer value representing the column
-        // it's a bit hacky, we could also use std.fmt.parseInt to parse the number
-        const column = elem[1] - '0';
-
-        // in case the column is out of bounds we print an error message and skip to the next element
-        if (column < 0 or column >= width) {
-            std.debug.print("Invalid column: {d}\n", .{column});
+    while (try in_stream.readUntilDelimiterOrEof(&buf, '\n')) |line| {
+        if (line.len == 0) {
+            try buf_writer.writer().print("0\n", .{});
             continue;
         }
 
-        switch (letter) {
-            'Q' => {
-                var piece = pieces.Square;
-                tetris_grid.set_piece(&piece, column);
-            },
-            'I' => {
-                var piece = pieces.Line;
-                tetris_grid.set_piece(&piece, column);
-            },
-            'T' => {
-                var piece = pieces.T;
-                tetris_grid.set_piece(&piece, column);
-            },
-            'L' => {
-                var piece = pieces.L;
-                tetris_grid.set_piece(&piece, column);
-            },
-            'J' => {
-                var piece = pieces.J;
-                tetris_grid.set_piece(&piece, column);
-            },
-            'Z' => {
-                var piece = pieces.Z;
-                tetris_grid.set_piece(&piece, column);
-            },
-            'S' => {
-                var piece = pieces.S;
-                tetris_grid.set_piece(&piece, column);
-            },
-            else => {
-                std.debug.print("Invalid piece: {c}\n", .{letter});
-            },
+        var tetris_grid = try grid.Grid.init(height, width, &allocator);
+        defer tetris_grid.deinit(&allocator);
+
+        // now for each element in the line (separated by ",")
+        // we parse the letter and the number
+        var elem_iter = std.mem.split(u8, line, ",");
+
+        while (elem_iter.next()) |elem| {
+            // each element is composed of a letter and a number
+            // the letter indicating the type of piece it is and the number indicating the starting column
+            const letter = elem[0];
+
+            // convert the column number to an integer by using - '0' to remove the ASCII offset
+            // and get the actual integer value representing the column
+            // it's a bit hacky, we could also use std.fmt.parseInt to parse the number
+            const column = elem[1] - '0';
+            // in case the column is out of bounds we print an error message and skip to the next element
+            if (column < 0 or column >= width) {
+                std.debug.print("Invalid column: {d}\n", .{column});
+                continue;
+            }
+
+            switch (letter) {
+                'Q' => {
+                    var piece = pieces.Square;
+                    tetris_grid.set_piece(&piece, column);
+                },
+                'I' => {
+                    var piece = pieces.Line;
+                    tetris_grid.set_piece(&piece, column);
+                },
+                'T' => {
+                    var piece = pieces.T;
+                    tetris_grid.set_piece(&piece, column);
+                },
+                'L' => {
+                    var piece = pieces.L;
+                    tetris_grid.set_piece(&piece, column);
+                },
+                'J' => {
+                    var piece = pieces.J;
+                    tetris_grid.set_piece(&piece, column);
+                },
+                'Z' => {
+                    var piece = pieces.Z;
+                    tetris_grid.set_piece(&piece, column);
+                },
+                'S' => {
+                    var piece = pieces.S;
+                    tetris_grid.set_piece(&piece, column);
+                },
+                else => {
+                    std.debug.print("Invalid piece: {c}\n", .{letter});
+                },
+            }
         }
+
+        const grid_max_height = try tetris_grid.get_max_height();
+        std.debug.print("Max height: {}\n", .{grid_max_height});
+        // Write the maximum height to the file
+        try buf_writer.writer().print("{d}\n", .{grid_max_height});
+
+        // Flush the buffered writer to ensure the value is written
+        try buf_writer.flush();
     }
 
-    try tetris_grid.output(output_path);
-    defer tetris_grid.deinit(&allocator);
+    // try tetris_grid.output(output_path);
+    // defer tetris_grid.deinit(&allocator);
 }

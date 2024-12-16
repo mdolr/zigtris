@@ -53,7 +53,7 @@ pub const Grid = struct {
         var col: u32 = 0;
 
         // start from the bottom and go up
-        while (row < self.height) : (row += 1) {
+        while (row < self.height) {
             col = 0;
 
             var full = true;
@@ -67,6 +67,7 @@ pub const Grid = struct {
 
             // if the row is not full we skip to next iteration (1 row up)
             if (!full) {
+                row += 1;
                 continue;
             }
 
@@ -145,13 +146,7 @@ pub const Grid = struct {
     // max height of the height cache as the total height of the
     // grid after all the pieces have been placed and full rows
     // have been completed
-    pub fn output(self: *Grid, output_path: []const u8) !void {
-        const file = try std.fs.cwd().createFile(output_path, .{});
-        defer file.close();
-
-        const writer = file.writer();
-        var buf_writer = std.io.bufferedWriter(writer);
-
+    pub fn get_max_height(self: *Grid) !usize {
         var max_height: usize = 0;
 
         // start at 0 in case the grid is empty
@@ -179,11 +174,6 @@ pub const Grid = struct {
             }
         }
 
-        // Write the maximum height to the file
-        try buf_writer.writer().print("{d}\n", .{max_height});
-        std.debug.print("Max height: {}\n", .{max_height});
-
-        // Flush the buffered writer to ensure the value is written
-        try buf_writer.flush();
+        return max_height;
     }
 };
